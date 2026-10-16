@@ -1,0 +1,41 @@
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+      - name: Unpack project
+        shell: bash
+        run: |
+          ls -la
+          Z=$(ls *.zip | head -n 1)
+          echo "Using zip: $Z"
+          mkdir -p proj
+          unzip -o "$Z" -d proj
+          ls proj
+      - name: Build
+        shell: bash
+        run: |
+          cd proj
+          gradle assembleDebug --no-daemon --console=plain 2>&1 | tee ../build.log
+      - name: Show errors
+        if: failure()
+        shell: bash
+        run: |
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -nE "^e: |error:|What went wrong|FAILED" -A3 build.log | head -60 >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-apk
+          path: proj/app/build/outputs/apk/debug/app-debug.apk
